@@ -1,0 +1,3 @@
+[submodule "wbs_aes_chow_fork_balena/target/aes-whitebox"]
+	path = wbs_aes_chow_fork_balena/target/aes-whitebox
+	url = https://github.com/balena/aes-whitebox
