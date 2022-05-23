@@ -35,6 +35,7 @@ import re
 # Adapt paths to your setup if needed:
 tracergrind_exec='/usr/local/bin/valgrind'
 tracerpin_exec='/usr/local/bin/Tracer'
+qiling_exec='/home/gg/Deadpool/wbs_aes_chow_fork_balena/TracerQiling/qtracer.py'
 
 def processinput(iblock, blocksize):
     """processinput() helper function
@@ -495,6 +496,78 @@ class TracerGrind(Tracer):
         output=self._exec(cmd_list, input_stdin, debug=True)
         output=subprocess.check_output("texttrace %s %s" % (tracefile+'.grind',tracefile), shell=True)
         os.remove(tracefile+'.grind')
+
+class TracerQiling(Tracer):
+    def __init__(self, target,
+                   processinput=processinput,
+                   processoutput=processoutput,
+                   arch=ARCH.amd64,
+                   blocksize=16,
+                   tmptracefile='default',
+                   addr_range='default',
+                   stack_range='default',
+                   filters='default',
+                   tolerate_error=False,
+                   shell=False,
+                   debug=False,
+                   record_info=True):
+        super(TracerQiling, self).__init__(target, processinput, processoutput, arch, blocksize, tmptracefile, addr_range, stack_range, filters, tolerate_error, shell, debug)
+        if self.addr_range=='default':
+            self.addr_range=None
+        if stack_range == 'default':
+            if self.arch==ARCH.i386:
+                self.stack_range =(0xff000000, 0xffffffff)
+            elif self.arch==ARCH.amd64:
+                self.stack_range =(0x7fff00000000, 0x7fffffffffff)
+        if record_info:
+            for f in self.filters:
+                f.record_info=False
+    def get_trace(self, n, iblock):
+        processed_input=self.processinput(iblock, self.blocksize)
+        input_stdin, input_args = processed_input
+        if input_stdin is None:
+            input_stdin=b''
+        if input_args is None:
+            input_args=[]
+        if self.addr_range:
+            cmd_list=[qiling_exec, '-f', str(self.addr_range), '-of', self.tmptracefile, '-t'] + self.target + input_args
+        else:
+            cmd_list=[qiling_exec, '-of', self.tmptracefile, '-t'] + self.target + input_args
+        output=self._exec(cmd_list, input_stdin)
+        oblock=self.processoutput(output, self.blocksize)
+        self._trace_init(n, iblock, oblock)
+        with open(self.tmptracefile, 'r') as trace:
+            for line in iter(trace.readline, ''):
+                if len(line) > 2 and (line[1]=='R' or line[1]=='W'):
+                    m=re.search(r'\[(.)\] *([0-9a-fA-F]+) *size= *([0-9]+) *value= *(.*)', line)
+                    assert m is not None
+                    mem_mode=m.group(1)
+                    mem_addr=int(m.group(2), 16)
+                    mem_size=int(m.group(3), 16)
+                    mem_data=int(m.group(4).replace(" ",""), 16)
+                    for f in self.filters:
+                        if mem_mode in f.modes and f.condition(self.stack_range, mem_addr, mem_size, mem_data):
+                            if f.record_info:
+                                self._trace_info[f.keyword].append((mem_mode, item, ins_addr, mem_addr, mem_size, mem_data))
+                            self._trace_data[f.keyword].append(f.extract(mem_addr, mem_size, mem_data))
+        self._trace_dump()
+        if not self.debug:
+            os.remove(self.tmptracefile)
+        return oblock
+
+    def run_once(self, iblock=None, tracefile=None):
+        if iblock is None:
+            iblock=random.randint(0, (1<<(8*self.blocksize))-1)
+        if tracefile is None:
+            tracefile = self.tmptracefile
+        processed_input=self.processinput(iblock, self.blocksize)
+        input_stdin, input_args = processed_input
+        if input_stdin is None:
+            input_stdin=b''
+        if input_args is None:
+            input_args=[]
+        cmd_list=[tracerpin_exec, '-f', str(self.addr_range), '-o', tracefile, '--'] + self.target + input_args
+        output=self._exec(cmd_list, input_stdin, debug=True)
 
 def serializechars(s, _out={}):
     """Replaces each byte of the string by 8 bytes representing the bits, starting with their LSB
