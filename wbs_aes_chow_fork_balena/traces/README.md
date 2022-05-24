@@ -3,7 +3,7 @@
 ## Acquiring one trace with TracerPIN
 
 ```bash
-Tracer -t sqlite -- ../target/aes128 57fc3136b432637710a00fe53e491308
+Tracer -t sqlite -- ../target/aes128-x86-64 57fc3136b432637710a00fe53e491308
 ```
 
 Sqlite trace is about 11Mb large.

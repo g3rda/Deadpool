@@ -31,24 +31,30 @@ def stop_hooks(ql, *args, **kw):
 
 
 if __name__ == "__main__":
-    # Instantiate the parser
     parser = argparse.ArgumentParser(description='Qiling Tracer')
+    # make sure you set full path to the target, otherwise it may crash
     parser.add_argument("-t", dest="target", required=True)
     parser.add_argument("-i", dest="input", required=True)
     parser.add_argument("-of", dest="outputfile", required=True)
     parser.add_argument("-f", dest="filters", required=False)
+    # mips, arm, x8664 works fine. aarch64 has an issue
+    parser.add_argument("-r", dest="rootfs", required=True)
 
 
     args = parser.parse_args()
 
     argv = [args.target, args.input]
-    ql = Qiling(argv, "/home/gg/Tools/qiling/examples/rootfs/x8664_linux", verbose=QL_VERBOSE.DEFAULT, multithread=True)
+    ql = Qiling(argv, args.rootfs, verbose=QL_VERBOSE.DEFAULT, multithread=True)
 
 
     if args.filters:
         filters = [int(i, 16) for i in args.filters.split('-')]
         ql.hook_address(start_hooks, filters[0])
         ql.hook_address(stop_hooks, filters[1])
+    else:
+        # captures every read and write; not recommended
+        ql.hook_mem_write(mem_write)
+        ql.hook_mem_read(mem_read)
 
     ql.run()
 

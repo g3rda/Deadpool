@@ -37,6 +37,14 @@ tracergrind_exec='/usr/local/bin/valgrind'
 tracerpin_exec='/usr/local/bin/Tracer'
 qiling_exec='/home/gg/Deadpool/wbs_aes_chow_fork_balena/TracerQiling/qtracer.py'
 
+rootfs = "/home/gg/Tools/qiling/examples/rootfs/"
+class ARCH:
+    i386  = rootfs + "x86_linux"
+    amd64 = rootfs + "x8664_linux"
+    arm   = rootfs + "arm_linux"
+    arm64 = rootfs + "arm64_linux"
+    mips  = rootfs + "mips32_linux"
+
 def processinput(iblock, blocksize):
     """processinput() helper function
    iblock: int representation of one input block
@@ -58,10 +66,6 @@ def processoutput(output, blocksize):
 """
     # return None if there is no output available
     return int(output, 16)
-
-class ARCH:
-    i386  = 0
-    amd64 = 1
 
 class Filter:
     def __init__(self, keyword, modes, condition, extract, extract_fmt):
@@ -380,6 +384,8 @@ class TracerPIN(Tracer):
         if record_info:
             for f in self.filters:
                 f.record_info=True
+        if self.arch != ARCH.amd64 and self.arch != ARCH.i386:
+            raise ValueError("Sorry, this arch not yet supported")
     def get_trace(self, n, iblock):
         processed_input=self.processinput(iblock, self.blocksize)
         input_stdin, input_args = processed_input
@@ -452,6 +458,8 @@ class TracerGrind(Tracer):
                 self.stack_range =(0xff0000000, 0xfffffffff)
         if record_info:
             raise ValueError("Sorry, option not yet supported!")
+        if self.arch != ARCH.amd64 and self.arch != ARCH.i386:
+            raise ValueError("Sorry, this arch not yet supported")
 
     def get_trace(self, n, iblock):
         processed_input=self.processinput(iblock, self.blocksize)
@@ -530,9 +538,9 @@ class TracerQiling(Tracer):
         if input_args is None:
             input_args=[]
         if self.addr_range:
-            cmd_list=[qiling_exec, '-f', str(self.addr_range), '-of', self.tmptracefile, '-t'] + self.target + input_args
+            cmd_list=[qiling_exec, '-f', str(self.addr_range), '-of', self.tmptracefile, '-t'] + self.target + input_args + ["-r", self.arch]
         else:
-            cmd_list=[qiling_exec, '-of', self.tmptracefile, '-t'] + self.target + input_args
+            cmd_list=[qiling_exec, '-of', self.tmptracefile, '-t'] + self.target + input_args + ["-r", self.arch]
         output=self._exec(cmd_list, input_stdin)
         oblock=self.processoutput(output, self.blocksize)
         self._trace_init(n, iblock, oblock)
