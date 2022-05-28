@@ -2,7 +2,7 @@
 
 from capstone import Cs
 from qiling import Qiling
-from qiling.const import QL_VERBOSE
+from qiling.const import QL_VERBOSE, QL_ENDIAN
 import argparse
 
 from unicorn.unicorn_const import UC_MEM_WRITE, UC_MEM_READ
@@ -12,6 +12,11 @@ traces = []
 def mem_read(ql: Qiling, access: int, address: int, size: int, value: int) -> None:
     # only read accesses are expected here
     assert access == UC_MEM_READ
+
+    if ql.archendian==QL_ENDIAN.EL:
+        value = int.from_bytes(ql.mem.read(address, size), "little")
+    else:
+        value = int.from_bytes(ql.mem.read(address, size), "big")
 
     traces.append(f'[R] {address:016x} size= {size:d} value={value:016x}\n')
 
